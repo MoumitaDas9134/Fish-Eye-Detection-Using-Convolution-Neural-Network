@@ -1,0 +1,72 @@
+# evaluate_model.py
+import os
+import shutil
+import numpy as np
+from tensorflow.keras.preprocessing.image import array_to_img
+from sklearn.metrics import confusion_matrix, classification_report
+
+def save_metrics(history, save_path):
+    """
+    Save the training metrics (accuracy and loss) to a file.
+    """
+    import json
+    accuracy_data = {
+        'training_accuracy': history.history['accuracy'],
+        'validation_accuracy': history.history['val_accuracy'],
+        'training_loss': history.history['loss'],
+        'validation_loss': history.history['val_loss'],
+    }
+    with open(os.path.join(save_path, 'training_metrics.json'), 'w') as f:
+        json.dump(accuracy_data, f)
+
+def evaluate_model(model, test_images, test_labels, save_path):
+    """
+    Evaluate the model on test data and save the confusion matrix and classification report.
+    """
+    test_loss, test_accuracy = model.evaluate(test_images, test_labels)
+    test_accuracy_percentage = test_accuracy * 100
+    print(f"Test Accuracy: {test_accuracy_percentage:.2f}%")
+
+    # Save test accuracy in percentage
+    with open(os.path.join(save_path, 'test_accuracy.txt'), 'w') as f:
+        f.write(f"Test Accuracy: {test_accuracy_percentage:.2f}%")
+
+    # Predictions and results
+    predictions = np.argmax(model.predict(test_images), axis=1)
+    conf_matrix = confusion_matrix(test_labels, predictions)
+    report = classification_report(test_labels, predictions, target_names=['Fresh', 'Non-Fresh'])
+
+    # Save Confusion Matrix and Classification Report
+    with open(os.path.join(save_path, 'confusion_matrix.txt'), 'w') as f:
+        f.write(f"Confusion Matrix:\n{conf_matrix}")
+    with open(os.path.join(save_path, 'classification_report.txt'), 'w') as f:
+        f.write(report)
+
+    # Visualize confusion matrix
+    print("Confusion Matrix:\n", conf_matrix)
+    print("Classification Report:\n", report)
+
+def classify_and_save_images(model, images, image_paths, output_path):
+    """
+    Classify images and save them into the corresponding folder (FRESH or NON_FRESH).
+    """
+    # Create OUTPUT directory if it doesn't exist
+    output_dir = os.path.join(output_path, 'OUTPUT')
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Create FRESH and NON_FRESH folders
+    fresh_dir = os.path.join(output_dir, 'FRESH')
+    non_fresh_dir = os.path.join(output_dir, 'NON_FRESH')
+    os.makedirs(fresh_dir, exist_ok=True)
+    os.makedirs(non_fresh_dir, exist_ok=True)
+
+    # Classify images and move them to respective folders
+    predictions = np.argmax(model.predict(images), axis=1)
+
+    for idx, img_path in enumerate(image_paths):
+        img = array_to_img(images[idx])  # Convert the image array back to an image
+        if predictions[idx] == 0:  # Fresh fish
+            img.save(os.path.join(fresh_dir, os.path.basename(img_path)))
+        else:  # Non-Fresh fish
+            img.save(os.path.join(non_fresh_dir, os.path.basename(img_path)))
